@@ -111,69 +111,51 @@ using Path = std::vector<Position>;
 // Beast is always a struct with a method `move`
 // with the same signature as in SampleBeast
 
-struct GameState {
-    Position heroPos;
-    Position beastPos;
-    GameState(Position h, Position b): heroPos(h), beastPos(b) {}
-    friend constexpr auto operator <=> (GameState, GameState) = default;
-};
+// std::ostream &operator<<(std::ostream &out, const std::pair<Position, Position> &G)
+// {
+//     out << "{[ " << std::setw(2) << G.first.row << ", "<< std::setw(2) << G.first.col << " ], [ "<< std::setw(2) << G.second.row << ", " << std::setw(2)<< G.second.col << " ]}";
+//     return out;
+// }
 
-struct GameStateHash {
-    std::size_t operator()(const GameState& s) const noexcept
-    {
-        std::size_t hashRowHero = std::hash<size_t>{}(s.heroPos.row);
-        std::size_t hashColHero = std::hash<size_t>{}(s.heroPos.col);
-        std::size_t hashRowBeast = std::hash<size_t>{}(s.beastPos.row);
-        std::size_t hashColBeast = std::hash<size_t>{}(s.beastPos.col);
-        return (hashColHero ^ (hashRowHero << 1)) ^ ((hashRowBeast ^ (hashColBeast << 1)) << 1);
-    }
-};
-
-std::ostream &operator<<(std::ostream &out, const GameState &G)
-{
-    out << "{[ " << std::setw(2) << G.heroPos.row << ", "<< std::setw(2) << G.heroPos.col << " ], [ "<< std::setw(2) << G.beastPos.row << ", " << std::setw(2)<< G.beastPos.col << " ]}";
-    return out;
-}
-
-void reconstructPath(Path& result, const std::unordered_map<GameState, GameState, GameStateHash>& previous, const GameState& endGameState, const GameState& startGameState) {
-    GameState currentGameState = endGameState;
+void reconstructPath(Path& result, const std::map<std::pair<Position, Position>, std::pair<Position, Position>>& previous, const std::pair<Position, Position>& endGameState, const std::pair<Position, Position>& startGameState) {
+    std::pair<Position, Position> currentGameState = endGameState;
     while(startGameState != currentGameState) {
-        result.push_back(currentGameState.heroPos);
+        result.push_back(currentGameState.first);
         currentGameState = previous.at(currentGameState);
     }
-    result.push_back(currentGameState.heroPos);
+    result.push_back(currentGameState.first);
     std::reverse(result.begin(), result.end());
 }
 
 template < typename Beast >
 Path find_escape_route(const Map& map, const Beast& beast) {
-    std::unordered_map<GameState, GameState, GameStateHash> previous;
-    std::unordered_set<GameState, GameStateHash> visited;
-    std::queue<GameState> q;
+    std::map<std::pair<Position, Position>, std::pair<Position, Position>> previous;
+    std::set<std::pair<Position, Position>> visited;
+    std::queue<std::pair<Position, Position>> q;
     std::vector<Direction> directions = { Direction::UP,  Direction::DOWN,  Direction::RIGHT,  Direction::LEFT};
     
     //init
-    GameState startGameState(map.hero, map.beast);
-    GameState endGameState(map.hero, map.beast);
+    std::pair<Position, Position> startGameState(map.hero, map.beast);
+    std::pair<Position, Position> endGameState(map.hero, map.beast);
     visited.insert(startGameState);
     previous.insert({startGameState, startGameState});
     q.push(startGameState);
     Path result;
     // std::cout << "===================START===================" <<std::endl;
     while(q.size() > 0) {
-        GameState curr = q.front();
+        std::pair<Position, Position> curr = q.front();
         q.pop();
         for(const auto &dir : directions) {
-            Position newHeroPos = curr.heroPos.move(dir);
+            Position newHeroPos = curr.first.move(dir);
             if(map[newHeroPos] == Tile::EMPTY) {
-                Position newBeastPos = beast.move(map, newHeroPos, curr.beastPos);
+                Position newBeastPos = beast.move(map, newHeroPos, curr.second);
                 if(newBeastPos != newHeroPos) {
-                    GameState nextGameState(newHeroPos, newBeastPos);
+                    std::pair<Position, Position> nextGameState(newHeroPos, newBeastPos);
                     if(!visited.contains(nextGameState)) {
                         visited.insert(nextGameState);
                         previous.insert({nextGameState, curr});
                         q.push(nextGameState);
-                        if(nextGameState.heroPos == map.exit) {
+                        if(nextGameState.first == map.exit) {
                             endGameState = nextGameState;
                             reconstructPath(result, previous, endGameState, startGameState);
                             return result;

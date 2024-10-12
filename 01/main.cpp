@@ -118,10 +118,15 @@ struct GameState {
     friend constexpr auto operator <=> (GameState, GameState) = default;
 };
 
-enum ExploredType {
-    OPEN = 1,
-    CLOSED = 2,
-    UNFOUND = 0
+struct GameStateHash {
+    std::size_t operator()(const GameState& s) const noexcept
+    {
+        std::size_t hashRowHero = std::hash<size_t>{}(s.heroPos.row);
+        std::size_t hashColHero = std::hash<size_t>{}(s.heroPos.col);
+        std::size_t hashRowBeast = std::hash<size_t>{}(s.beastPos.row);
+        std::size_t hashColBeast = std::hash<size_t>{}(s.beastPos.col);
+        return (hashColHero ^ (hashRowHero << 1)) ^ ((hashRowBeast ^ (hashColBeast << 1)) << 1);
+    }
 };
 
 std::ostream &operator<<(std::ostream &out, const GameState &G)
@@ -130,13 +135,11 @@ std::ostream &operator<<(std::ostream &out, const GameState &G)
     return out;
 }
 
-void reconstructPath(Path& result, const std::map<GameState, GameState>& previous, const GameState& endGameState) {
+void reconstructPath(Path& result, const std::unordered_map<GameState, GameState, GameStateHash>& previous, const GameState& endGameState, const GameState& startGameState) {
     GameState currentGameState = endGameState;
-    GameState prevGameState = previous.at(endGameState);
-    while(prevGameState != currentGameState) {
+    while(startGameState != currentGameState) {
         result.push_back(currentGameState.heroPos);
-        currentGameState = prevGameState;
-        prevGameState = previous.at(currentGameState);
+        currentGameState = previous.at(currentGameState);
     }
     result.push_back(currentGameState.heroPos);
     std::reverse(result.begin(), result.end());
@@ -144,45 +147,40 @@ void reconstructPath(Path& result, const std::map<GameState, GameState>& previou
 
 template < typename Beast >
 Path find_escape_route(const Map& map, const Beast& beast) {
-    std::map<GameState, ExploredType> exploredStates;
-    std::map<GameState, GameState> previous;
+    std::unordered_map<GameState, GameState, GameStateHash> previous;
+    std::unordered_set<GameState, GameStateHash> visited;
     std::queue<GameState> q;
     std::vector<Direction> directions = { Direction::UP,  Direction::DOWN,  Direction::RIGHT,  Direction::LEFT};
     
     //init
-    GameState start(map.hero, map.beast);
-    exploredStates.insert({start, OPEN});
-    previous.insert({start, start});
-    q.push(start);
-    bool stop = false;
+    GameState startGameState(map.hero, map.beast);
     GameState endGameState(map.hero, map.beast);
+    visited.insert(startGameState);
+    previous.insert({startGameState, startGameState});
+    q.push(startGameState);
+    Path result;
     // std::cout << "===================START===================" <<std::endl;
     while(q.size() > 0) {
         GameState curr = q.front();
         q.pop();
         for(const auto &dir : directions) {
             Position newHeroPos = curr.heroPos.move(dir);
-            if(map[newHeroPos] != Tile::WALL && map[newHeroPos] != Tile::TRAP) {
-                //validni policko
+            if(map[newHeroPos] == Tile::EMPTY) {
                 Position newBeastPos = beast.move(map, newHeroPos, curr.beastPos);
                 if(newBeastPos != newHeroPos) {
                     GameState nextGameState(newHeroPos, newBeastPos);
-                    if(!exploredStates.contains(nextGameState)) {
-                        exploredStates.insert({nextGameState, OPEN});
+                    if(!visited.contains(nextGameState)) {
+                        visited.insert(nextGameState);
                         previous.insert({nextGameState, curr});
                         q.push(nextGameState);
                         if(nextGameState.heroPos == map.exit) {
-                            stop = true;
                             endGameState = nextGameState;
-                            break;
+                            reconstructPath(result, previous, endGameState, startGameState);
+                            return result;
                         }
                     }
                 }
             }
-        }
-        exploredStates[curr] = CLOSED;
-        if(stop) {
-            break;
         }
     }
     // print the result
@@ -199,10 +197,7 @@ Path find_escape_route(const Map& map, const Beast& beast) {
     //     std::cout << "  " << el.first << ", "  << el.second << "\n";
     // }
     // std::cout << "===================END===================" <<std::endl;
-    Path result;
-    if(stop) {
-        reconstructPath(result, previous, endGameState);
-    }
+
     // std::cout << "===================RESULT===================" << std::endl;
     // for(const auto &el : result) {
     //     std::cout << "  " << el.row << ", " << el.col << "\n";

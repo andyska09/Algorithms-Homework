@@ -25,7 +25,7 @@
 template <typename T>
 struct Queue
 {
-    Queue() : root(nullptr), m_size(0) {};
+    Queue() : root(nullptr) {};
     ~Queue()
     {
         deleteTree(root);
@@ -35,18 +35,12 @@ struct Queue
     {
         Node *left;
         Node *right;
-        size_t key;
+        Node *parent;
+        size_t size;
+        size_t height;
         T value;
-        Node(size_t key, T value) : left(nullptr), right(nullptr), key(key), value(value) {};
+        Node(T value) : left(nullptr), right(nullptr), parent(nullptr), size(1), height(1), value(value) {};
     };
-
-    struct Ref
-    {
-        Node *ptrNode;
-        Ref(Node *newNode) : ptrNode(newNode) {};
-    };
-
-    // AVL Tree stuff
 
     void deleteTree(Node *node)
     {
@@ -57,21 +51,49 @@ struct Queue
         delete node;
     }
 
-    Node *insert(Node *currentNode, Node *ptrNewNode)
+    struct Ref
     {
-        if (currentNode == nullptr)
+        Node *ptrNode;
+        Ref(Node *newNode) : ptrNode(newNode) {};
+    };
+
+    // AVL array
+
+    // helper
+    size_t getSize(Node *node) const
+    {
+        return node ? node->size : 0;
+    }
+
+    void updateNode(Node *node)
+    {
+        if (node)
         {
-            return ptrNewNode;
+            node->height = 1 + std::max(getHeight(node->left), getHeight(node->right));
+            node->size = 1 + getSize(node->left) + getSize(node->right);
         }
-        if (currentNode->key < ptrNewNode->key)
+    }
+
+    // main
+    Node *insert(Node *curr, size_t index, Node *newNode)
+    {
+        if (curr == nullptr)
         {
-            currentNode->left = insert(currentNode->left, ptrNewNode);
+            return newNode;
         }
-        else if (currentNode->key >= ptrNewNode->key)
+        size_t leftSize = getSize(curr->left);
+        if (index <= leftSize)
         {
-            currentNode->right = insert(currentNode->right, ptrNewNode);
+            curr->left = insert(curr->left, index, newNode);
+            curr->left->parent = curr;
         }
-        return currentNode;
+        else
+        {
+            curr->right = insert(curr->right, index - leftSize - 1, newNode);
+            curr->right->parent = curr;
+        }
+        updateNode(curr);
+        return curr;
     }
 
     Node *findMin(Node *node)
@@ -80,39 +102,101 @@ struct Queue
             return node;
         return findMin(node->left);
     }
-    // TODO
-    Node *deleteNode(Node *root, Node *target)
-    {
-    }
-    // end of AVL Tree Stuff
 
-    bool empty() const { return size() == 0; }
-    size_t size() const { return m_size; }
+    Node *erase(Node *curr, size_t index)
+    {
+        if (curr == nullptr)
+        {
+            throw std::out_of_range("Index out of range");
+        }
+
+        size_t leftSize = getSize(curr->left);
+        if (index < leftSize)
+        {
+            curr->left = erase(curr->left, index);
+        }
+        else if (index > leftSize)
+        {
+            curr->right = erase(curr->right, index - leftSize - 1);
+        }
+        else
+        {
+            if (!curr->left || !curr->right)
+            {
+                Node *temp = curr->left ? curr->left : curr->right;
+                if (temp)
+                    temp->parent = curr->parent;
+                delete curr;
+                return temp;
+            }
+            else
+            {
+                Node *temp = findMin(curr->right);
+                curr->value = temp->value;
+                curr->right = erase(curr->right, 0);
+            }
+        }
+        updateNode(curr);
+        return curr;
+    }
+
+    void printInorder(Node *curr) const
+    {
+        if (curr)
+        {
+            printInorder(curr->left);
+            std::cout << "val: " << curr->value << "  size: " << curr->size << std::endl;
+            printInorder(curr->right);
+        }
+    }
+
+    // QUEUE
+    bool empty() const { return !root; }
+    size_t size() const { return empty() ? 0 : root->size; }
 
     Ref push_last(T x)
     {
-        Node *newNode = new Node(size(), x);
-        if (size() == 0)
+        Node *newNode = new Node(x);
+        if (root == nullptr)
         {
             root = newNode;
         }
         else
         {
-            insert(root, newNode);
+            root = insert(root, root->size, newNode);
         }
-        m_size++;
         return Queue<T>::Ref(newNode);
     }
 
-    // TODO
-    T pop_first() { return T(); } // throw std::out_of_range if empty
+    T pop_first()
+    {
+        T value = findMin(root)->value;
+        root = erase(root, 0);
+        return value;
+    }
 
-    size_t position(const Ref &it) const { return 0; }
+    size_t position(const Ref &it) const
+    {
+        Node *current = it.ptrNode;
+        size_t pos = getSize(current->left);
+        while (current->parent)
+        {
+            if (current == current->parent->right)
+            {
+                pos += getSize(current->parent->left) + 1;
+            }
+            else
+            {
+                break;
+            }
+            current = current->parent;
+        }
+        return pos;
+    }
 
     void jump_ahead(const Ref &it, size_t positions) { return; }
 
     Node *root;
-    size_t m_size;
 };
 
 #ifndef __PROGTEST__
@@ -190,7 +274,10 @@ void test1(int &ok, int &fail)
         CHECK(Q.empty(), false);
         CHECK(Q.size(), i + 1);
     }
-
+    std::cout << "==============================" << std::endl;
+    Q.printInorder(Q.root);
+    std::cout << "TOTAL SIZE: " << Q.root->size << std::endl;
+    std::cout << "==============================" << std::endl;
     for (int i = 0; i < TOT; i++)
     {
         CHECK(Q.pop_first(), i % RUN);

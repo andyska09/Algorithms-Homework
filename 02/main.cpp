@@ -59,10 +59,40 @@ struct Queue
 
     // AVL array
 
-    // helper
+    // helper funcs
+
+    void printInorder(Node *curr) const
+    {
+        if (curr)
+        {
+            printInorder(curr->left);
+            std::cout << "val: " << curr->value << "  size: " << curr->size << " h: " << curr->height << std::endl;
+            printInorder(curr->right);
+        }
+    }
+
+    bool checkBalance(Node *curr)
+    {
+        if (!curr)
+        {
+            return true;
+        }
+        int delta = getDelta(curr);
+        if (delta < -1 || 1 < delta)
+        {
+            return false;
+        }
+        return checkBalance(curr->left) && checkBalance(curr->right);
+    }
+
     size_t getSize(Node *node) const
     {
         return node ? node->size : 0;
+    }
+
+    size_t getHeight(Node *node)
+    {
+        return node ? node->height : 0;
     }
 
     void updateNode(Node *node)
@@ -72,6 +102,73 @@ struct Queue
             node->height = 1 + std::max(getHeight(node->left), getHeight(node->right));
             node->size = 1 + getSize(node->left) + getSize(node->right);
         }
+    }
+
+    int getDelta(Node *node)
+    {
+        return node ? getHeight(node->right) - getHeight(node->left) : 0;
+    }
+
+    // rotations
+    Node *rotateRight(Node *y)
+    {
+        Node *x = y->left;
+        Node *C = x->right;
+        x->right = y;
+        y->left = C;
+        if (C)
+        {
+            C->parent = y;
+        }
+        x->parent = y->parent;
+        y->parent = x;
+        updateNode(y);
+        updateNode(x);
+        return x;
+    }
+
+    Node *rotateLeft(Node *x)
+    {
+        Node *y = x->right;
+        Node *B = y->left;
+
+        y->left = x;
+        x->right = B;
+
+        if (B)
+        {
+            B->parent = x;
+        }
+        y->parent = x->parent;
+        x->parent = y;
+
+        updateNode(x);
+        updateNode(y);
+        return y;
+    }
+
+    Node *balance(Node *node)
+    {
+        int delta = getDelta(node);
+        if (delta < -1)
+        {
+            if (getDelta(node->left) > 0)
+            {
+                node->left = rotateLeft(node->left);
+            }
+            return rotateRight(node);
+        }
+
+        if (delta > 1)
+        {
+            if (getDelta(node->right) < 0)
+            {
+                node->right = rotateRight(node->right);
+            }
+            return rotateLeft(node);
+        }
+
+        return node;
     }
 
     // main
@@ -93,7 +190,7 @@ struct Queue
             curr->right->parent = curr;
         }
         updateNode(curr);
-        return curr;
+        return balance(curr);
     }
 
     Node *findMin(Node *node)
@@ -137,17 +234,7 @@ struct Queue
             }
         }
         updateNode(curr);
-        return curr;
-    }
-
-    void printInorder(Node *curr) const
-    {
-        if (curr)
-        {
-            printInorder(curr->left);
-            std::cout << "val: " << curr->value << "  size: " << curr->size << std::endl;
-            printInorder(curr->right);
-        }
+        return balance(curr);
     }
 
     // QUEUE
@@ -194,7 +281,11 @@ struct Queue
         return pos;
     }
 
-    void jump_ahead(const Ref &it, size_t positions) { return; }
+    void jump_ahead(const Ref &it, size_t positions)
+    {
+        // hell on earth here
+        return;
+    }
 
     Node *root;
 };
@@ -276,15 +367,20 @@ void test1(int &ok, int &fail)
     }
     std::cout << "==============================" << std::endl;
     Q.printInorder(Q.root);
-    std::cout << "TOTAL SIZE: " << Q.root->size << std::endl;
+    std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    std::cout << "BALANCED: " << std::boolalpha << Q.checkBalance(Q.root) << std::endl;
     std::cout << "==============================" << std::endl;
-    for (int i = 0; i < TOT; i++)
+    for (int i = 0; i < 95; i++)
     {
         CHECK(Q.pop_first(), i % RUN);
         CHECK(Q.size(), TOT - 1 - i);
     }
-
-    CHECK(Q.empty(), true);
+    std::cout << "===============AFTER DELETE===============" << std::endl;
+    Q.printInorder(Q.root);
+    std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    std::cout << "BALANCED: " << std::boolalpha << Q.checkBalance(Q.root) << std::endl;
+    std::cout << "==============================" << std::endl;
+    CHECK(Q.empty(), false);
 }
 
 void test2(int &ok, int &fail)

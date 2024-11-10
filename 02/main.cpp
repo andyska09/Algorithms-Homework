@@ -57,8 +57,6 @@ struct Queue
         Ref(Node *newNode) : ptrNode(newNode) {};
     };
 
-    // AVL array
-
     // helper funcs
 
     void printInorder(Node *curr) const
@@ -66,12 +64,15 @@ struct Queue
         if (curr)
         {
             printInorder(curr->left);
-            std::cout << "val: " << curr->value << "  size: " << curr->size << " h: " << curr->height << std::endl;
+            std::cout << curr << " | " << "v: " << curr->value << "  size: " << curr->size << " h: " << curr->height << "\n"
+                      << " l: " << curr->left << " r: " << curr->right << " p: " << curr->parent << std::endl;
+            // std::cout << curr << " i: " << position(Ref(curr)) << " v: " << curr->value << std::endl;
+            // std::cout << curr << " v: " << curr->value << " s: " << curr->size << std::endl;
             printInorder(curr->right);
         }
     }
 
-    bool checkBalance(Node *curr)
+    bool checkBalance(Node *curr) const
     {
         if (!curr)
         {
@@ -90,7 +91,7 @@ struct Queue
         return node ? node->size : 0;
     }
 
-    size_t getHeight(Node *node)
+    size_t getHeight(Node *node) const
     {
         return node ? node->height : 0;
     }
@@ -104,7 +105,7 @@ struct Queue
         }
     }
 
-    int getDelta(Node *node)
+    int getDelta(Node *node) const
     {
         return node ? getHeight(node->right) - getHeight(node->left) : 0;
     }
@@ -167,7 +168,6 @@ struct Queue
             }
             return rotateLeft(node);
         }
-
         return node;
     }
 
@@ -200,7 +200,7 @@ struct Queue
         return findMin(node->left);
     }
 
-    Node *erase(Node *curr, size_t index)
+    Node *extractIndex(Node *curr, size_t index, Node *&extractedNode)
     {
         if (curr == nullptr)
         {
@@ -210,27 +210,45 @@ struct Queue
         size_t leftSize = getSize(curr->left);
         if (index < leftSize)
         {
-            curr->left = erase(curr->left, index);
+            curr->left = extractIndex(curr->left, index, extractedNode);
         }
         else if (index > leftSize)
         {
-            curr->right = erase(curr->right, index - leftSize - 1);
+            curr->right = extractIndex(curr->right, index - leftSize - 1, extractedNode);
         }
         else
         {
             if (!curr->left || !curr->right)
             {
-                Node *temp = curr->left ? curr->left : curr->right;
-                if (temp)
-                    temp->parent = curr->parent;
-                delete curr;
-                return temp;
+                Node *successor = curr->left ? curr->left : curr->right;
+                if (successor)
+                {
+                    successor->parent = curr->parent;
+                }
+                curr->left = curr->right = curr->parent = nullptr;
+                extractedNode = curr;
+                return successor;
             }
             else
             {
-                Node *temp = findMin(curr->right);
-                curr->value = temp->value;
-                curr->right = erase(curr->right, 0);
+                Node *successor = nullptr;
+                curr->right = extractIndex(curr->right, 0, successor);
+
+                successor->right = curr->right;
+                if (successor->right)
+                {
+                    successor->right->parent = successor;
+                }
+                successor->left = curr->left;
+                if (successor->left)
+                {
+                    successor->left->parent = successor;
+                }
+                successor->parent = curr->parent;
+                curr->left = curr->right = curr->parent = nullptr;
+                extractedNode = curr;
+                updateNode(successor);
+                return balance(successor);
             }
         }
         updateNode(curr);
@@ -258,7 +276,9 @@ struct Queue
     T pop_first()
     {
         T value = findMin(root)->value;
-        root = erase(root, 0);
+        Node *extracted = nullptr;
+        root = extractIndex(root, 0, extracted);
+        delete extracted;
         return value;
     }
 
@@ -272,10 +292,6 @@ struct Queue
             {
                 pos += getSize(current->parent->left) + 1;
             }
-            else
-            {
-                break;
-            }
             current = current->parent;
         }
         return pos;
@@ -283,7 +299,16 @@ struct Queue
 
     void jump_ahead(const Ref &it, size_t positions)
     {
-        // hell on earth here
+        size_t index = position(it);
+        Node *extracted = nullptr;
+        root = extractIndex(root, index, extracted);
+        updateNode(extracted);
+        size_t newIndex = 0;
+        if (index > positions)
+        {
+            newIndex = index - positions;
+        }
+        root = insert(root, newIndex, extracted);
         return;
     }
 
@@ -351,6 +376,44 @@ std::string quote(const std::string &s)
 
 ////////////////// End of dark magic ////////////////////////
 
+void mytest(int &ok, int &fail)
+{
+    Queue<int> Q;
+    CHECK(Q.empty(), true);
+    CHECK(Q.size(), 0);
+    std::vector<decltype(Q.push_last(0))> refs;
+
+    constexpr int RUN = 10, TOT = 6;
+
+    for (int i = 0; i < TOT; i++)
+    {
+        refs.push_back(Q.push_last(i % RUN));
+        CHECK(Q.size(), i + 1);
+    }
+
+    // for (const auto &ref : refs)
+    // {
+    //     std::cout << ref.ptrNode << " v: " << ref.ptrNode->value << std::endl;
+    // }
+
+    // std::cout << "============BEFORE================" << std::endl;
+    // Q.printInorder(Q.root);
+    // std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    // std::cout << "==============================" << std::endl;
+
+    // Q.jump_ahead(refs[0], 15);
+
+    Q.jump_ahead(refs[3], 0);
+    // std::cout << "============AFTER================" << std::endl;
+    // Q.printInorder(Q.root);
+    // std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    // std::cout << "==============================" << std::endl;
+
+    CHECK(Q.size(), TOT);
+    for (int i = 0; i < TOT; i++)
+        CHECK(Q.position(refs[i]), i);
+}
+
 void test1(int &ok, int &fail)
 {
     Queue<int> Q;
@@ -364,23 +427,16 @@ void test1(int &ok, int &fail)
         Q.push_last(i % RUN);
         CHECK(Q.empty(), false);
         CHECK(Q.size(), i + 1);
+        CHECK(Q.checkBalance(Q.root), true);
     }
-    std::cout << "==============================" << std::endl;
-    Q.printInorder(Q.root);
-    std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
-    std::cout << "BALANCED: " << std::boolalpha << Q.checkBalance(Q.root) << std::endl;
-    std::cout << "==============================" << std::endl;
-    for (int i = 0; i < 95; i++)
+    for (int i = 0; i < TOT; i++)
     {
         CHECK(Q.pop_first(), i % RUN);
         CHECK(Q.size(), TOT - 1 - i);
+        CHECK(Q.checkBalance(Q.root), true);
     }
-    std::cout << "===============AFTER DELETE===============" << std::endl;
-    Q.printInorder(Q.root);
-    std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
-    std::cout << "BALANCED: " << std::boolalpha << Q.checkBalance(Q.root) << std::endl;
-    std::cout << "==============================" << std::endl;
-    CHECK(Q.empty(), false);
+
+    CHECK(Q.empty(), true);
 }
 
 void test2(int &ok, int &fail)
@@ -398,11 +454,18 @@ void test2(int &ok, int &fail)
         CHECK(Q.size(), i + 1);
     }
 
+    // for (const auto &ref : refs)
+    // {
+    //     std::cout << ref.ptrNode << " v: " << ref.ptrNode->value << std::endl;
+    // }
+
     for (int i = 0; i < TOT; i++)
         CHECK(Q.position(refs[i]), i);
 
     Q.jump_ahead(refs[0], 15);
     Q.jump_ahead(refs[3], 0);
+
+    CHECK(Q.checkBalance(Q.root), true);
 
     CHECK(Q.size(), TOT);
     for (int i = 0; i < TOT; i++)
@@ -412,15 +475,28 @@ void test2(int &ok, int &fail)
     Q.jump_ahead(refs[9], 100);
     Q.jump_ahead(refs[7], 1);
 
+    CHECK(Q.checkBalance(Q.root), true);
+
     static_assert(RUN == 10 && TOT >= 30);
     for (int i : {9, 8, 0, 1, 2, 3, 4, 5, 7, 6})
         CHECK(Q.pop_first(), i);
+
+    // std::cout << "============BEFORE================" << std::endl;
+    // Q.printInorder(Q.root);
+    // std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    // std::cout << "==============================" << std::endl;
+    CHECK(Q.checkBalance(Q.root), true);
 
     for (int i = 0; i < TOT * 2 / 3; i++)
     {
         CHECK(Q.pop_first(), i % RUN);
         CHECK(Q.size(), TOT - 11 - i);
     }
+    CHECK(Q.checkBalance(Q.root), true);
+    // std::cout << "============AFTER================" << std::endl;
+    // Q.printInorder(Q.root);
+    // std::cout << "TOTAL SIZE: " << Q.root->size << " h: " << Q.root->height << std::endl;
+    // std::cout << "==============================" << std::endl;
 
     CHECK(Q.empty(), false);
 }
@@ -461,11 +537,13 @@ int main()
 {
     int ok = 0, fail = 0;
     if (!fail)
+        mytest(ok, fail);
+    if (!fail)
         test1(ok, fail);
-    // if (!fail)
-    //     test2(ok, fail);
-    // if (!fail)
-    //     test_speed<1'000>(ok, fail);
+    if (!fail)
+        test2(ok, fail);
+    if (!fail)
+        test_speed<1'000>(ok, fail);
 
     if (!fail)
         std::cout << "Passed all " << ok << " tests!" << std::endl;

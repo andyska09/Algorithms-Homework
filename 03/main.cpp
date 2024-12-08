@@ -73,14 +73,14 @@ std::vector<Block> highest_tower(const std::vector<Block> &available_blocks)
     std::vector<Block> sorted_blocks = available_blocks;
 
     std::sort(sorted_blocks.begin(), sorted_blocks.end(), [](const Block &a, const Block &b)
-              {
-                  return (a.x < b.x) || (a.x == b.x && a.y < b.y);
-              });
+              { return (a.x < b.x) || (a.x == b.x && a.y < b.y); });
     std::vector<int> N(available_blocks.size() + 1, -1);
     std::vector<uint64_t> T(available_blocks.size() + 1, 0);
     sorted_blocks.insert(sorted_blocks.begin(), {0, 0, 0});
-    std::cout << "==============result: " << std::endl;
-    std::cout << "len: " << NRP(sorted_blocks, T, N) << std::endl;
+    // std::cout << "==============result: " << std::endl;
+    // std::cout << "len: " <<
+    NRP(sorted_blocks, T, N);
+    //  << std::endl;
     int currIndex = N[0];
     std::vector<Block> result;
     while (currIndex > -1)
@@ -89,11 +89,11 @@ std::vector<Block> highest_tower(const std::vector<Block> &available_blocks)
         currIndex = N[currIndex];
     }
     std::reverse(result.begin(), result.end());
-    for (const auto &block : result)
-    {
-        std::cout << "{ " << block.x << ", " << block.y << ", " << block.h << " }" << std::endl;
-    }
-    std::cout << "====================" << std::endl;
+    // for (const auto &block : result)
+    // {
+    //     std::cout << "{ " << block.x << ", " << block.y << ", " << block.h << " }" << std::endl;
+    // }
+    // std::cout << "====================" << std::endl;
     return result;
 }
 

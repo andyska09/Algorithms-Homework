@@ -48,9 +48,53 @@ uint64_t tower_height(const std::vector<Block> &tower)
 
 #endif
 
+uint64_t NRP(const std::vector<Block> &sortedBlocks, std::vector<uint64_t> &T, std::vector<int> &N)
+{
+    size_t n = sortedBlocks.size() - 1;
+    for (int i = n; i >= 0; i--)
+    {
+        T[i] = sortedBlocks[i].h;
+        uint64_t currHeight = T[i];
+        N[i] = -1;
+        for (size_t j = i + 1; j <= n; j++)
+        {
+            if (sortedBlocks[i].y <= sortedBlocks[j].y && T[i] < currHeight + T[j])
+            {
+                T[i] = currHeight + T[j];
+                N[i] = j;
+            }
+        }
+    }
+    return T[0];
+}
+
 std::vector<Block> highest_tower(const std::vector<Block> &available_blocks)
 {
-    // TODO
+    std::vector<Block> sorted_blocks = available_blocks;
+
+    std::sort(sorted_blocks.begin(), sorted_blocks.end(), [](const Block &a, const Block &b)
+              {
+                  return (a.x < b.x) || (a.x == b.x && a.y < b.y);
+              });
+    std::vector<int> N(available_blocks.size() + 1, -1);
+    std::vector<uint64_t> T(available_blocks.size() + 1, 0);
+    sorted_blocks.insert(sorted_blocks.begin(), {0, 0, 0});
+    std::cout << "==============result: " << std::endl;
+    std::cout << "len: " << NRP(sorted_blocks, T, N) << std::endl;
+    int currIndex = N[0];
+    std::vector<Block> result;
+    while (currIndex > -1)
+    {
+        result.push_back(sorted_blocks[currIndex]);
+        currIndex = N[currIndex];
+    }
+    std::reverse(result.begin(), result.end());
+    for (const auto &block : result)
+    {
+        std::cout << "{ " << block.x << ", " << block.y << ", " << block.h << " }" << std::endl;
+    }
+    std::cout << "====================" << std::endl;
+    return result;
 }
 
 #ifndef __PROGTEST__
@@ -342,9 +386,15 @@ int main()
         auto sol = highest_tower(T.second);
         // some checks are intentionally missing
         if (check_tower(sol) && tower_height(sol) == T.first)
+        {
             ok++;
+            std::cout << "OK" << std::endl;
+        }
         else
+        {
             fail++;
+            std::cout << "FAIL" << std::endl;
+        }
     }
 
     if (!fail)

@@ -48,47 +48,74 @@ uint64_t tower_height(const std::vector<Block> &tower)
 
 #endif
 
-uint64_t NRP(const std::vector<Block> &sortedBlocks, std::vector<uint64_t> &T, std::vector<int> &N)
+int NRP_fast(const std::vector<Block> &sorted_blocks, std::vector<int> &N)
 {
-    size_t n = sortedBlocks.size() - 1;
-    for (int i = n; i >= 0; i--)
+    int n = sorted_blocks.size();
+    std::map<uint64_t, std::pair<uint64_t, int>> dp; // key: y, value: {weight, predecessor index}
+    int last_index = -1;                             // end of biggest tower index
+    uint64_t max_height = 0;                         // biggest total height
+
+    for (int i = 0; i < n; i++) // left to right
     {
-        T[i] = sortedBlocks[i].h;
-        uint64_t currHeight = T[i];
-        N[i] = -1;
-        for (size_t j = i + 1; j <= n; j++)
+        auto ptr_smallest_bigger_block = dp.upper_bound(sorted_blocks[i].y);
+        uint64_t current_height = sorted_blocks[i].h;
+        int prev_idx = -1;
+
+        // best ending of tower is the smallest size, biggest height (thx to updating), that is closest to ours
+        if (ptr_smallest_bigger_block != dp.begin())
         {
-            if (sortedBlocks[i].y <= sortedBlocks[j].y && T[i] < currHeight + T[j])
+            ptr_smallest_bigger_block--;
+            current_height += ptr_smallest_bigger_block->second.first;
+            prev_idx = ptr_smallest_bigger_block->second.second;
+        }
+
+        // if new or if exists, than if we have better height, with the same size
+        if (!dp.contains(sorted_blocks[i].y) || current_height > dp[sorted_blocks[i].y].first)
+        {
+            dp[sorted_blocks[i].y] = {current_height, i};
+            N[i] = prev_idx;
+
+            if (current_height > max_height)
             {
-                T[i] = currHeight + T[j];
-                N[i] = j;
+                max_height = current_height;
+                last_index = i;
             }
         }
+
+        // update, if bigger size and worse height -> delete
+        auto current = dp.find(sorted_blocks[i].y);
+        uint64_t val = dp[sorted_blocks[i].y].first;
+        current++;
+        while (current != dp.end() && val >= current->second.first)
+        {
+            current = dp.erase(current);
+        }
     }
-    return T[0];
+
+    // std::cout << "DP table:" << std::endl;
+    // for (const auto &pair : dp)
+    // {
+    //     std::cout << pair.first << " , " << pair.second.first << std::endl;
+    // }
+    return last_index;
 }
 
 std::vector<Block> highest_tower(const std::vector<Block> &available_blocks)
 {
+    std::vector<Block> result;
     std::vector<Block> sorted_blocks = available_blocks;
 
     std::sort(sorted_blocks.begin(), sorted_blocks.end(), [](const Block &a, const Block &b)
               { return (a.x < b.x) || (a.x == b.x && a.y < b.y); });
-    std::vector<int> N(available_blocks.size() + 1, -1);
-    std::vector<uint64_t> T(available_blocks.size() + 1, 0);
-    sorted_blocks.insert(sorted_blocks.begin(), {0, 0, 0});
-    // std::cout << "==============result: " << std::endl;
-    // std::cout << "len: " <<
-    NRP(sorted_blocks, T, N);
-    //  << std::endl;
-    int currIndex = N[0];
-    std::vector<Block> result;
-    while (currIndex > -1)
+
+    std::vector<int> N(available_blocks.size(), -1);
+
+    int last_index = NRP_fast(sorted_blocks, N);
+
+    for (int idx = last_index; idx != -1; idx = N[idx])
     {
-        result.push_back(sorted_blocks[currIndex]);
-        currIndex = N[currIndex];
+        result.push_back(sorted_blocks[idx]);
     }
-    std::reverse(result.begin(), result.end());
     // for (const auto &block : result)
     // {
     //     std::cout << "{ " << block.x << ", " << block.y << ", " << block.h << " }" << std::endl;

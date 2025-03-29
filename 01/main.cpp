@@ -110,14 +110,22 @@ using Path = std::vector<Position>;
 
 // Beast is always a struct with a method `move`
 // with the same signature as in SampleBeast
+constexpr std::size_t PRIME_NUM = 37;
+struct HashPair {
+    std::size_t operator()(const std::pair<Position, Position>& pair) const {
+        std::size_t hashHeroRow = std::hash<size_t>{}(pair.first.row);
+        std::size_t hashHeroCol = std::hash<size_t>{}(pair.first.col);
+        std::size_t hashHero = (hashHeroRow + (hashHeroCol << 1)) * PRIME_NUM;
 
-// std::ostream &operator<<(std::ostream &out, const std::pair<Position, Position> &G)
-// {
-//     out << "{[ " << std::setw(2) << G.first.row << ", "<< std::setw(2) << G.first.col << " ], [ "<< std::setw(2) << G.second.row << ", " << std::setw(2)<< G.second.col << " ]}";
-//     return out;
-// }
+        std::size_t hashBeastRow = std::hash<size_t>{}(pair.second.row);
+        std::size_t hashBeastCol = std::hash<size_t>{}(pair.second.col);
+        std::size_t hashBeast = (hashBeastRow + (hashBeastCol << 1)) * PRIME_NUM;
 
-void reconstructPath(Path& result, const std::map<std::pair<Position, Position>, std::pair<Position, Position>>& previous, const std::pair<Position, Position>& endGameState, const std::pair<Position, Position>& startGameState) {
+        return (hashHero ^ (hashBeast << 1)) * PRIME_NUM;
+    }
+};
+
+void reconstructPath(Path& result, const std::unordered_map<std::pair<Position, Position>, std::pair<Position, Position>, HashPair>& previous, const std::pair<Position, Position>& endGameState, const std::pair<Position, Position>& startGameState) {
     std::pair<Position, Position> currentGameState = endGameState;
     while(startGameState != currentGameState) {
         result.push_back(currentGameState.first);
@@ -129,19 +137,16 @@ void reconstructPath(Path& result, const std::map<std::pair<Position, Position>,
 
 template < typename Beast >
 Path find_escape_route(const Map& map, const Beast& beast) {
-    std::map<std::pair<Position, Position>, std::pair<Position, Position>> previous;
-    std::set<std::pair<Position, Position>> visited;
+    std::unordered_map<std::pair<Position, Position>, std::pair<Position, Position>, HashPair> previous;
     std::queue<std::pair<Position, Position>> q;
     std::vector<Direction> directions = { Direction::UP,  Direction::DOWN,  Direction::RIGHT,  Direction::LEFT};
     
-    //init
     std::pair<Position, Position> startGameState(map.hero, map.beast);
     std::pair<Position, Position> endGameState(map.hero, map.beast);
-    visited.insert(startGameState);
+
     previous.insert({startGameState, startGameState});
     q.push(startGameState);
     Path result;
-    // std::cout << "===================START===================" <<std::endl;
     while(q.size() > 0) {
         std::pair<Position, Position> curr = q.front();
         q.pop();
@@ -151,8 +156,7 @@ Path find_escape_route(const Map& map, const Beast& beast) {
                 Position newBeastPos = beast.move(map, newHeroPos, curr.second);
                 if(newBeastPos != newHeroPos) {
                     std::pair<Position, Position> nextGameState(newHeroPos, newBeastPos);
-                    if(!visited.contains(nextGameState)) {
-                        visited.insert(nextGameState);
+                    if(!previous.contains(nextGameState)) {
                         previous.insert({nextGameState, curr});
                         q.push(nextGameState);
                         if(nextGameState.first == map.exit) {
@@ -165,26 +169,6 @@ Path find_escape_route(const Map& map, const Beast& beast) {
             }
         }
     }
-    // print the result
-    // std::cout << "PREV ARR:" << std::endl;
-    // for(const auto &prevEl : previous) {
-    //     if(prevEl.first == prevEl.second) {
-    //         std::cout << "START:";
-    //     }
-    //     std::cout << "  "  << prevEl.first << ", "  << prevEl.second << "\n";
-    // }
-    // std::cout << std::endl;
-    // std::cout << "EXPLORED STATES:" << std::endl;
-    // for(const auto &el : exploredStates) {
-    //     std::cout << "  " << el.first << ", "  << el.second << "\n";
-    // }
-    // std::cout << "===================END===================" <<std::endl;
-
-    // std::cout << "===================RESULT===================" << std::endl;
-    // for(const auto &el : result) {
-    //     std::cout << "  " << el.row << ", " << el.col << "\n";
-    // }
-    // std::cout << std::endl;
     return result;
 }
 
